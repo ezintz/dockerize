@@ -9,7 +9,7 @@ RUN apk add --no-cache git=~2.36.3 openssl=~1.1.1q
 COPY . /src
 WORKDIR /src
 
-RUN CGO_ENABLED=0 go install -ldflags "-X 'main.ver=$(git describe --match='v*' --exact-match)'"
+RUN CGO_ENABLED=0 go install -ldflags "-s -w -X 'main.ver=$(git describe --match='v*' --exact-match)'"
 
 FROM alpine:3.16
 
