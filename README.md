@@ -1,15 +1,15 @@
 # dockerize
 
-[![Release](https://img.shields.io/github/v/release/powerman/dockerize.svg)](https://github.com/powerman/dockerize/releases/latest)
-[![Docker Automated Build](https://img.shields.io/docker/automated/powerman/dockerize.svg)](https://hub.docker.com/r/powerman/dockerize/tags)
-[![CI/CD](https://github.com/powerman/dockerize/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/powerman/dockerize/actions/workflows/ci-cd.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/powerman/dockerize)](https://goreportcard.com/report/github.com/powerman/dockerize)
-[![Coverage Status](https://coveralls.io/repos/github/powerman/dockerize/badge.svg?branch=main)](https://coveralls.io/github/powerman/dockerize?branch=main)
+[![Release](https://img.shields.io/github/v/release/ezintz/dockerize.svg)](https://github.com/ezintz/dockerize/releases/latest)
+[![Docker Automated Build](https://img.shields.io/docker/automated/ezintz/dockerize.svg)](https://hub.docker.com/r/ezintz/dockerize/tags)
+[![CI/CD](https://github.com/ezintz/dockerize/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/ezintz/dockerize/actions/workflows/ci-cd.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ezintz/dockerize)](https://goreportcard.com/report/github.com/ezintz/dockerize)
+[![Coverage Status](https://coveralls.io/repos/github/ezintz/dockerize/badge.svg?branch=master)](https://coveralls.io/github/ezintz/dockerize?branch=master)
 
 Utility to simplify running applications in docker containers.
 
 **About this fork:** This fork is supposed to become a community-maintained replacement for
-[not maintained](https://github.com/powerman/dockerize/issues/19)
+[not maintained](https://github.com/ezintz/dockerize/issues/19)
 [original repo](https://github.com/jwilder/dockerize). Everyone who has
 contributed to the project may become a collaborator - just ask for it
 in PR comments after your PR has being merged.
@@ -21,7 +21,6 @@ in PR comments after your PR has being merged.
 - [Overview](#overview)
 - [Installation](#installation)
   - [Docker Base Image](#docker-base-image)
-  - [Docker Multiple Stage Image](#docker-multiple-stage-image)
 - [Usage](#usage)
   - [Command-line Options](#command-line-options)
   - [Waiting for other dependencies](#waiting-for-other-dependencies)
@@ -75,49 +74,39 @@ apt update && apt install -y curl
 and then either install the latest version:
 
 ```sh
-curl -sfL $(curl -s https://api.github.com/repos/powerman/dockerize/releases/latest | grep -i /dockerize-$(uname -s)-$(uname -m)\" | cut -d\" -f4) | install /dev/stdin /usr/local/bin/dockerize
+curl -sfL $(curl -s https://api.github.com/repos/ezintz/dockerize/releases/latest | grep -i /dockerize-$(uname -s)-$(uname -m)\" | cut -d\" -f4) | install /dev/stdin /usr/local/bin/dockerize
 ```
 
 or specific version:
 
 ```sh
-curl -sfL https://github.com/powerman/dockerize/releases/download/v0.11.5/dockerize-`uname -s`-`uname -m` | install /dev/stdin /usr/local/bin/dockerize
+curl -sfL https://github.com/ezintz/dockerize/releases/download/v0.16.3/dockerize-`uname -s`-`uname -m` | install /dev/stdin /usr/local/bin/dockerize
 ```
 
 If `curl` is not available (e.g. busybox base image) then you can use `wget`:
 
 ```
 ### busybox: latest version
-wget -O - $(wget -O - https://api.github.com/repos/powerman/dockerize/releases/latest | grep -i /dockerize-$(uname -s)-$(uname -m)\" | cut -d\" -f4) | install /dev/stdin /usr/local/bin/dockerize
+wget -O - $(wget -O - https://api.github.com/repos/ezintz/dockerize/releases/latest | grep -i /dockerize-$(uname -s)-$(uname -m)\" | cut -d\" -f4) | install /dev/stdin /usr/local/bin/dockerize
 
 ### busybox: specific version
-wget -O - https://github.com/powerman/dockerize/releases/download/v0.11.5/dockerize-`uname -s`-`uname -m` | install /dev/stdin /usr/local/bin/dockerize
+wget -O - https://github.com/ezintz/dockerize/releases/download/v0.16.3/dockerize-`uname -s`-`uname -m` | install /dev/stdin /usr/local/bin/dockerize
 ```
 
 PGP public key for verifying signed binaries: https://powerman.name/about/Powerman.asc
 
 ```
 curl -sfL https://powerman.name/about/Powerman.asc | gpg --import
-curl -sfL https://github.com/powerman/dockerize/releases/download/v0.11.5/dockerize-`uname -s`-`uname -m`.asc > dockerize.asc
+curl -sfL https://github.com/ezintz/dockerize/releases/download/v0.16.3/dockerize-`uname -s`-`uname -m`.asc >dockerize.asc
 gpg --verify dockerize.asc /usr/local/bin/dockerize
 ```
 
 ### Docker Base Image
 
-The `powerman/dockerize` image is a base image based on `Alpine Linux`.  `dockerize` is installed in the `$PATH` and can be used directly.
+The `ezintz/dockerize` image is a base image based on `alpine linux`.  `dockerize` is installed in the `$PATH` and can be used directly.
 
 ```
-FROM powerman/dockerize
-...
-ENTRYPOINT dockerize ...
-```
-
-### Docker Multiple Stage Image
-
-```
-FROM powerman/dockerize AS dockerize
-FROM alpine:3.16
-COPY --from=dockerize /usr/local/bin/dockerize /usr/local/bin
+FROM ezintz/dockerize
 ...
 ENTRYPOINT dockerize ...
 ```
