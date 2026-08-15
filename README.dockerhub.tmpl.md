@@ -1,3 +1,15 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
+
+- [dockerize](#dockerize)
+  - [Quick start](#quick-start)
+  - [Image variants](#image-variants)
+  - [Core concepts](#core-concepts)
+  - [Notable releases](#notable-releases)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # dockerize
 
 Utility to simplify running applications in docker containers: renders config file templates
