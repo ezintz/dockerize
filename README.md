@@ -20,6 +20,7 @@ in PR comments after your PR has being merged.
 
 - [Overview](#overview)
 - [Installation](#installation)
+  - [Verifying releases (SLSA provenance & cosign)](#verifying-releases-slsa-provenance--cosign)
   - [Docker Base Image](#docker-base-image)
 - [Usage](#usage)
   - [Command-line Options](#command-line-options)
