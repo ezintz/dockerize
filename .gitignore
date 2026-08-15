@@ -9,3 +9,5 @@
 /.gobincache/
 /bin/
 /cover.out
+/dist/
+/dockerize

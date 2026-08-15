@@ -1,7 +1,7 @@
 # dockerize
 
 [![Release](https://img.shields.io/github/v/release/ezintz/dockerize.svg)](https://github.com/ezintz/dockerize/releases/latest)
-[![Docker Automated Build](https://img.shields.io/docker/automated/ezintz/dockerize.svg)](https://hub.docker.com/r/ezintz/dockerize/tags)
+[![Docker Pulls](https://img.shields.io/docker/pulls/ezintz/dockerize.svg)](https://hub.docker.com/r/ezintz/dockerize/tags)
 [![CI/CD](https://github.com/ezintz/dockerize/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/ezintz/dockerize/actions/workflows/ci-cd.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ezintz/dockerize)](https://goreportcard.com/report/github.com/ezintz/dockerize)
 [![Coverage Status](https://coveralls.io/repos/github/ezintz/dockerize/badge.svg?branch=master)](https://coveralls.io/github/ezintz/dockerize?branch=master)
