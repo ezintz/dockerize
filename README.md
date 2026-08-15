@@ -230,7 +230,12 @@ send `/var/log/nginx/access.log` to `STDOUT` and `/var/log/nginx/error.log` to `
 `nginx`, only after waiting for the `web` host to respond on `tcp 8000`:
 
 ``` Dockerfile
-CMD dockerize -template /etc/nginx/nginx.tmpl:/etc/nginx/nginx.conf -stdout /var/log/nginx/access.log -stderr /var/log/nginx/error.log -wait tcp://web:8000 nginx
+CMD dockerize \
+  -template /etc/nginx/nginx.tmpl:/etc/nginx/nginx.conf \
+  -stdout /var/log/nginx/access.log \
+  -stderr /var/log/nginx/error.log \
+  -wait tcp://web:8000 \
+  nginx
 ```
 
 ### Command-line Options
@@ -238,7 +243,9 @@ CMD dockerize -template /etc/nginx/nginx.tmpl:/etc/nginx/nginx.conf -stdout /var
 You can specify multiple templates by passing using `-template` multiple times:
 
 ```
-$ dockerize -template template1.tmpl:file1.cfg -template template2.tmpl:file3
+$ dockerize \
+  -template template1.tmpl:file1.cfg \
+  -template template2.tmpl:file3
 
 ```
 
@@ -260,48 +267,63 @@ $ dockerize -template src_dir:dest_dir
 If the destination file already exists, dockerize will overwrite it. The -no-overwrite flag overrides this behaviour.
 
 ```
-$ dockerize -no-overwrite -template template1.tmpl:file
+$ dockerize \
+  -no-overwrite \
+  -template template1.tmpl:file
 ```
 
 You can tail multiple files to `STDOUT` and `STDERR` by passing the options multiple times.
 (These options can't be combined with `-exec`.)
 
 ```
-$ dockerize -stdout info.log -stdout perf.log
+$ dockerize \
+  -stdout info.log \
+  -stdout perf.log
 
 ```
 
 If your file uses `{{` and `}}` as part of it's syntax, you can change the template escape characters using the `-delims`.
 
 ```
-$ dockerize -delims "<%:%>" -template template1.tmpl
+$ dockerize \
+  -delims "<%:%>" \
+  -template template1.tmpl
 ```
 
 You can require all environment variables mentioned in template exists
 with `-template-strict`:
 
 ```
-$ dockerize -template-strict -template template1.tmpl
+$ dockerize \
+  -template-strict \
+  -template template1.tmpl
 ```
 
 HTTP headers can be specified for http/https protocols.
 If header is specified as a file path then file must contain single string with `Header: value`.
 
 ```
-$ dockerize -wait http://web:80 -wait-http-header "Authorization:Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ=="
+$ dockerize \
+  -wait http://web:80 \
+  -wait-http-header "Authorization:Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ=="
 ```
 
 Required HTTP status codes can be specified, otherwise any 2xx status will
 be accepted.
 
 ```
-$ dockerize -wait http://web:80 -wait-http-status-code 302 -wait-http-status-code 200
+$ dockerize \
+  -wait http://web:80 \
+  -wait-http-status-code 302 \
+  -wait-http-status-code 200
 ```
 
 HTTP redirects can be ignored:
 
 ```
-$ dockerize -wait http://web:80 -wait-http-skip-redirect
+$ dockerize \
+  -wait http://web:80 \
+  -wait-http-skip-redirect
 ```
 
 Dockerize process can be replaced with given command.
@@ -318,7 +340,11 @@ It is common when using tools like [Docker Compose](https://docs.docker.com/comp
 Dockerize gives you the ability to wait for services on a specified protocol (`file`, `tcp`, `tcp4`, `tcp6`, `http`, `https`, `amqp`, `amqps`, `mysql` and `unix`) before starting your application:
 
 ```
-$ dockerize -wait tcp://db:5432 -wait http://web:80 -wait file:///tmp/generated-file -wait mysql://user:pass@db:3306/dbname
+$ dockerize \
+  -wait tcp://db:5432 \
+  -wait http://web:80 \
+  -wait file:///tmp/generated-file \
+  -wait mysql://user:pass@db:3306/dbname
 ```
 
 Multiple URLs can also be specified with `-wait-list` flag, that accept a space-separated list of URLs. The behaviour is equivalent to use multiple `-wait` flags.
@@ -335,7 +361,10 @@ $ dockerize -wait-list "tcp://db:5432 http://web:80 file:///tmp/generated-file"
 You can optionally specify how long to wait for the services to become available by using the `-timeout #` argument (Default: 10 seconds).  If the timeout is reached and the service is still not available, the process exits with status code 123.
 
 ```
-$ dockerize -wait tcp://db:5432 -wait http://web:80 -timeout 10s
+$ dockerize \
+  -wait tcp://db:5432 \
+  -wait http://web:80 \
+  -timeout 10s
 ```
 
 See [this issue](https://github.com/docker/compose/issues/374#issuecomment-126312313) for a deeper discussion, and why support isn't and won't be available in the Docker ecosystem itself.
@@ -347,19 +376,25 @@ You can optionally specify how long to wait after a failed `-wait` check by usin
 Waiting for 5 seconds before checking again of a currently unavailable service:
 
 ```
-$ dockerize -wait tcp://db:5432 -wait-retry-interval 5s
+$ dockerize \
+  -wait tcp://db:5432 \
+  -wait-retry-interval 5s
 ```
 
 ### Use custom CA for SSL cert verification for https/amqps connections
 
 ```
-$ dockerize -cacert /path/to/ca.pem -wait https://web:80
+$ dockerize \
+  -cacert /path/to/ca.pem \
+  -wait https://web:80
 ```
 
 ### Skip SSL cert verification for https/amqps connections
 
 ```
-$ dockerize -skip-tls-verify -wait https://web:80
+$ dockerize \
+  -skip-tls-verify \
+  -wait https://web:80
 ```
 
 ### Injecting env vars from INI file
@@ -369,9 +404,14 @@ Multiline flag allows parsing multiline INI entries.
 File with header must contain single string with `Header: value`.
 
 ```
-$ dockerize -env /path/to/file.ini -env-section SectionName -multiline …
-$ dockerize -env http://localhost:80/file.ini \
-    -env-header "Header: value" -env-header /path/to/file/with/header …
+$ dockerize \
+  -env /path/to/file.ini \
+  -env-section SectionName \
+  -multiline …
+$ dockerize \
+  -env http://localhost:80/file.ini \
+  -env-header "Header: value" \
+  -env-header /path/to/file/with/header …
 ```
 
 ## Using Templates

@@ -82,8 +82,16 @@ jobs:
         with:
           install: true
 
+      # DOCKERHUB_USERNAME is a plain (non-secret) repository variable, not a
+      # GitHub secret: it's already public (same value hardcoded in the
+      # docker.io image refs below and in the README), and registering it as
+      # a secret makes GitHub Actions mask every occurrence of it in this
+      # job's output -- including inside the ghcr.io/ezintz/... image name
+      # strings extracted from GoReleaser's artifact JSON below, which
+      # silently drops the alpine/chainguard/chainguard-fips image job
+      # outputs and breaks the SLSA container-provenance jobs downstream.
       - name: Log in to Docker Hub
-        run: echo "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+        run: echo "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}" | docker login -u "${{ vars.DOCKERHUB_USERNAME }}" --password-stdin
 
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
