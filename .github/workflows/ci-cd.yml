@@ -7,8 +7,8 @@ on:
   pull_request:
     branches: main
 
-env:
-  GO_VERSION: '1.19.2' # Also in Dockerfile.
+permissions:
+  contents: read
 
 jobs:
 
@@ -16,14 +16,14 @@ jobs:
     runs-on: 'ubuntu-latest'
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
           cache-dependency-path: go.sum
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/go/bin
@@ -46,58 +46,136 @@ jobs:
           scripts/cover
           .gobincache/goveralls -coverprofile=cover.out -service=GitHub
 
-  build-and-release:
+  # Only version tags are published: SLSA provenance requires a versioned,
+  # reproducible release, and GoReleaser's --snapshot mode (what would be
+  # needed to publish from a bare main-branch commit) explicitly disables
+  # all publishing. main pushes only run the `test` job above.
+  goreleaser:
     needs: test
+    if: github.event_name == 'push' && github.ref_type == 'tag'
     runs-on: 'ubuntu-latest'
     timeout-minutes: 30
-    if: github.event_name == 'push'
+    outputs:
+      hashes: ${{ steps.binary.outputs.hashes }}
+      alpine-image: ${{ steps.alpine-image.outputs.name }}
+      alpine-digest: ${{ steps.alpine-image.outputs.digest }}
+      chainguard-image: ${{ steps.chainguard-image.outputs.name }}
+      chainguard-digest: ${{ steps.chainguard-image.outputs.digest }}
+    permissions:
+      contents: write # to create the GitHub release and upload assets
+      id-token: write # to sign with cosign (keyless/OIDC)
+      packages: write # to push to GHCR
     steps:
-      - uses: actions/setup-go@v3
+      - uses: actions/checkout@v4
         with:
-          go-version: ${{ env.GO_VERSION }}
+          fetch-depth: 0
 
-      - uses: actions/checkout@v3
-
-      - name: Turnstyle
-        uses: softprops/turnstyle@v1
+      - uses: actions/setup-go@v5
         with:
-          poll-interval-seconds: 3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
 
-      - uses: actions/cache@v3
-        with:
-          path: |
-            ~/go/pkg
-            ~/.cache/go-build
-          key: v3-build-${{ runner.os }}-${{ hashFiles('go.mod') }}
-          restore-keys: |
-            v3-build-${{ runner.os }}-
-
-      - uses: docker/setup-buildx-action@v2
+      - uses: docker/setup-buildx-action@v3
         with:
           install: true
 
-      - name: Build and push to official Docker registry
-        run: |
-          echo ${{ secrets.DOCKERHUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
-          if echo "$GITHUB_REF" | grep -q '^refs/tags/v'; then
-            TAGS="${GITHUB_REF/refs\/tags\/v}"
-          else
-            #TAGS="$GITHUB_SHA latest"
-            TAGS="latest"
-          fi
-          for TAG in $TAGS; do
-            IMAGE_TAG="${{ secrets.DOCKERHUB_USERNAME }}/$(basename ${GITHUB_REPOSITORY,,}):$TAG"
-            docker build . --push --file Dockerfile --tag "$IMAGE_TAG" --platform linux/amd64,linux/amd64/v2,linux/amd64/v3,linux/arm64,linux/arm/v6,linux/arm/v7,linux/ppc64le,linux/s390x,linux/386
-          done
+      - name: Log in to Docker Hub
+        run: echo "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-      #- run: echo -e "$GPG_KEY" | gpg --import
-      #  if: github.ref_type == 'tag'
-      #  env:
-      #    GPG_KEY: ${{ secrets.GPG_KEY }}
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - run: scripts/release
-        if: github.ref_type == 'tag'
+      - uses: anchore/sbom-action/download-syft@v0.15.0
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Run GoReleaser
+        id: goreleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: '~> v2'
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COSIGN_EXPERIMENTAL: '1'
+
+      - name: Generate binary hashes
+        id: binary
+        env:
+          ARTIFACTS: ${{ steps.goreleaser.outputs.artifacts }}
+        run: |
+          set -euo pipefail
+          checksum_file=$(echo "$ARTIFACTS" | jq -r '.[] | select(.type=="Checksum") | .path')
+          echo "hashes=$(cat "$checksum_file" | base64 -w0)" >> "$GITHUB_OUTPUT"
+
+      # dockers_v2 pushes each (image, tag) as a single multi-platform manifest
+      # already -- one "Docker Image" artifact per tag, digest in .extra.Digest.
+      # Filter to ghcr.io (our provenance-attested registry) and the versioned
+      # tag (excluding the floating "latest"/"latest-chainguard" tags) so
+      # provenance is pinned to an immutable reference.
+      - name: Alpine image digest
+        id: alpine-image
+        env:
+          ARTIFACTS: ${{ steps.goreleaser.outputs.artifacts }}
+        run: |
+          set -euo pipefail
+          image_and_digest=$(echo "$ARTIFACTS" | jq -r '
+            .[] | select(.type=="Docker Image" and .extra.ID=="dockerize-alpine")
+                | select(.name | startswith("ghcr.io"))
+                | select(.name | contains(":latest") | not)
+                | "\(.name)@\(.extra.Digest)"' | head -n1)
+          echo "name=$(echo "$image_and_digest" | cut -d'@' -f1 | cut -d':' -f1)" >> "$GITHUB_OUTPUT"
+          echo "digest=$(echo "$image_and_digest" | cut -d'@' -f2)" >> "$GITHUB_OUTPUT"
+
+      - name: Chainguard image digest
+        id: chainguard-image
+        env:
+          ARTIFACTS: ${{ steps.goreleaser.outputs.artifacts }}
+        run: |
+          set -euo pipefail
+          image_and_digest=$(echo "$ARTIFACTS" | jq -r '
+            .[] | select(.type=="Docker Image" and .extra.ID=="dockerize-chainguard")
+                | select(.name | startswith("ghcr.io"))
+                | select(.name | contains(":latest") | not)
+                | "\(.name)@\(.extra.Digest)"' | head -n1)
+          echo "name=$(echo "$image_and_digest" | cut -d'@' -f1 | cut -d':' -f1)" >> "$GITHUB_OUTPUT"
+          echo "digest=$(echo "$image_and_digest" | cut -d'@' -f2)" >> "$GITHUB_OUTPUT"
+
+  binary-provenance:
+    needs: goreleaser
+    permissions:
+      actions: read # to read the workflow path
+      id-token: write # to sign the provenance
+      contents: write # to add assets to the release
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    with:
+      base64-subjects: ${{ needs.goreleaser.outputs.hashes }}
+      upload-assets: true
+
+  alpine-image-provenance:
+    needs: goreleaser
+    permissions:
+      actions: read
+      id-token: write
+      packages: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: ${{ needs.goreleaser.outputs.alpine-image }}
+      digest: ${{ needs.goreleaser.outputs.alpine-digest }}
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  chainguard-image-provenance:
+    needs: goreleaser
+    permissions:
+      actions: read
+      id-token: write
+      packages: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: ${{ needs.goreleaser.outputs.chainguard-image }}
+      digest: ${{ needs.goreleaser.outputs.chainguard-digest }}
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}

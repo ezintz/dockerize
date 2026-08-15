@@ -29,6 +29,7 @@ const (
 )
 
 // Read-only globals for use only within init() and main().
+//
 //nolint:gochecknoglobals // By design.
 var (
 	app = strings.TrimSuffix(path.Base(os.Args[0]), ".test")
@@ -220,5 +221,5 @@ Options:`)
              -wait tcp://web:8000 \
              nginx -g 'daemon off;'
 	`)
-	fmt.Println(`For more information, see https://github.com/powerman/dockerize`)
+	fmt.Println(`For more information, see https://github.com/ezintz/dockerize`)
 }

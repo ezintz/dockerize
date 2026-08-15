@@ -4,10 +4,11 @@ set -x -e -o pipefail
 go generate
 
 hadolint Dockerfile
+hadolint Dockerfile.chainguard
 
 shellcheck scripts/*
 
-go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.47.3
-golangci-lint run --version --verbose --out-format=github-actions
+golangci-lint --version
+golangci-lint run --verbose --out-format=github-actions
 
 gotestsum -- -race -timeout=60s "$@" ./...

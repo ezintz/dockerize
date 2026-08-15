@@ -14,7 +14,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 var (
@@ -94,7 +94,7 @@ func waitForSocket(ctx context.Context, cfg waitConfig, u *url.URL, readyc chan<
 	if u.Scheme == schemeUnix {
 		addr = u.Path
 	}
-	dialer := &net.Dialer{}
+	dialer := &net.Dialer{} //nolint:exhaustruct // Only overriding non-default fields.
 
 	for {
 		conn, err := dialer.DialContext(ctx, u.Scheme, addr)
@@ -125,23 +125,23 @@ func waitForHTTP(ctx context.Context, cfg waitConfig, u *url.URL, readyc chan<- 
 		}
 	}
 
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
+	client := &http.Client{ //nolint:exhaustruct // Only overriding non-default fields.
+		Transport: &http.Transport{ //nolint:exhaustruct // Only overriding non-default fields.
+			TLSClientConfig: &tls.Config{ //nolint:exhaustruct // Only overriding non-default fields.
 				InsecureSkipVerify: cfg.skipTLSVerify, //nolint:gosec // TLS InsecureSkipVerify may be true.
 				RootCAs:            cfg.ca,
 			},
 		},
 	}
 	if cfg.skipRedirect {
-		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
 	}
 	var resp *http.Response
 
 	for {
-		req, err := http.NewRequest("GET", u.String(), http.NoBody)
+		req, err := http.NewRequest(http.MethodGet, u.String(), http.NoBody)
 		if err == nil {
 			for _, h := range cfg.headers {
 				req.Header.Add(h.name, h.value)
@@ -168,8 +168,8 @@ func waitForHTTP(ctx context.Context, cfg waitConfig, u *url.URL, readyc chan<- 
 }
 
 func waitForAMQP(ctx context.Context, cfg waitConfig, u *url.URL, readyc chan<- *url.URL) { //nolint:interfacer // False positive.
-	amqpCfg := amqp.Config{
-		TLSClientConfig: &tls.Config{
+	amqpCfg := amqp.Config{ //nolint:exhaustruct // Only overriding non-default fields.
+		TLSClientConfig: &tls.Config{ //nolint:exhaustruct // Only overriding non-default fields.
 			InsecureSkipVerify: cfg.skipTLSVerify, //nolint:gosec // TLS InsecureSkipVerify may be true.
 			RootCAs:            cfg.ca,
 		},

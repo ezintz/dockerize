@@ -1,0 +1,145 @@
+version: 2
+
+project_name: dockerize
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: dockerize
+    main: .
+    binary: dockerize
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X 'main.ver={{ .Version }}'
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - "386"
+      - arm
+      - arm64
+      - ppc64le
+      - s390x
+      - mips64le
+      - riscv64
+    goarm:
+      - "5"
+      - "6"
+    ignore:
+      # darwin only ships amd64/arm64, matching the previous scripts/release matrix.
+      - goos: darwin
+        goarch: "386"
+      - goos: darwin
+        goarch: arm
+      - goos: darwin
+        goarch: ppc64le
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: mips64le
+      - goos: darwin
+        goarch: riscv64
+
+archives:
+  - formats: ["binary"]
+    # Reproduces the previous dockerize-$OS-$ARCH naming from scripts/release.
+    name_template: >-
+      {{ .ProjectName }}-
+      {{- if eq .Os "darwin" }}darwin{{- else }}linux{{- end }}-
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}386
+      {{- else if and (eq .Arch "arm") (eq .Arm "5") }}armel
+      {{- else if and (eq .Arch "arm") (eq .Arm "6") }}armhf
+      {{- else if eq .Arch "arm64" }}arm64
+      {{- else if eq .Arch "ppc64le" }}ppc64le
+      {{- else if eq .Arch "s390x" }}s390x
+      {{- else if eq .Arch "mips64le" }}mips64
+      {{- else if eq .Arch "riscv64" }}riscv64
+      {{- end }}
+
+# NOTE: this replaces the old per-binary `dockerize-$OS-$ARCH.sha256` files
+# with a single aggregate checksums.txt (GoReleaser's default shape). SLSA
+# provenance now covers integrity verification too, so this is a deliberate
+# simplification -- call it out in the release notes/README.
+checksum:
+  name_template: "checksums.txt"
+
+sboms:
+  - id: archive
+    artifacts: archive
+
+# Keyless cosign signing (Sigstore OIDC, no key material to manage) of the
+# checksums file -- every binary is covered since it's hashed in there.
+signs:
+  - cmd: cosign
+    env:
+      - COSIGN_EXPERIMENTAL=1
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - --output-certificate=${certificate}
+      - --output-signature=${signature}
+      - ${artifact}
+      - --yes
+    artifacts: checksum
+    output: true
+
+dockers_v2:
+  - id: dockerize-alpine
+    ids:
+      - dockerize
+    dockerfile: Dockerfile
+    images:
+      - docker.io/ezintz/dockerize
+      - ghcr.io/ezintz/dockerize
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .IsNightly }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/386
+      - linux/arm/v6
+      - linux/arm64
+      - linux/ppc64le
+      - linux/s390x
+      - linux/riscv64
+      # Note: mips64le is a release binary target but not a container image
+      # target -- GoReleaser's Docker builder doesn't support it as an OCI
+      # platform.
+    annotations:
+      "org.opencontainers.image.description": "Utility to simplify running applications in docker containers."
+      "org.opencontainers.image.created": "{{ .Date }}"
+      "org.opencontainers.image.name": "{{ .ProjectName }}"
+      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.source": "{{ .GitURL }}"
+
+  # Hardened variant on Chainguard's distroless "static" base (near-zero CVEs,
+  # rebuilt daily) for users who don't need a shell/package manager in the
+  # runtime image. No FROM-derivation support (no shell/apk) -- the Alpine
+  # variant above remains the default for that use case.
+  - id: dockerize-chainguard
+    ids:
+      - dockerize
+    dockerfile: Dockerfile.chainguard
+    images:
+      - docker.io/ezintz/dockerize
+      - ghcr.io/ezintz/dockerize
+    tags:
+      - "{{ .Version }}-chainguard"
+      - "{{ if not .IsNightly }}latest-chainguard{{ end }}"
+    # Chainguard only publishes amd64/arm64 for its base images.
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    annotations:
+      "org.opencontainers.image.description": "Utility to simplify running applications in docker containers (Chainguard static base)."
+      "org.opencontainers.image.created": "{{ .Date }}"
+      "org.opencontainers.image.name": "{{ .ProjectName }}"
+      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.source": "{{ .GitURL }}"

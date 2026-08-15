@@ -74,31 +74,53 @@ apt update && apt install -y curl
 and then either install the latest version:
 
 ```sh
-curl -sfL $(curl -s https://api.github.com/repos/ezintz/dockerize/releases/latest | grep -i /dockerize-$(uname -s)-$(uname -m)\" | cut -d\" -f4) | install /dev/stdin /usr/local/bin/dockerize
+curl -sfL $(curl -s https://api.github.com/repos/ezintz/dockerize/releases/latest | grep -i /dockerize-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)\" | cut -d\" -f4) | install /dev/stdin /usr/local/bin/dockerize
 ```
 
 or specific version:
 
 ```sh
-curl -sfL https://github.com/ezintz/dockerize/releases/download/v0.16.3/dockerize-`uname -s`-`uname -m` | install /dev/stdin /usr/local/bin/dockerize
+curl -sfL https://github.com/ezintz/dockerize/releases/download/v0.17.0/dockerize-`uname -s | tr '[:upper:]' '[:lower:]'`-`uname -m` | install /dev/stdin /usr/local/bin/dockerize
 ```
 
 If `curl` is not available (e.g. busybox base image) then you can use `wget`:
 
 ```
 ### busybox: latest version
-wget -O - $(wget -O - https://api.github.com/repos/ezintz/dockerize/releases/latest | grep -i /dockerize-$(uname -s)-$(uname -m)\" | cut -d\" -f4) | install /dev/stdin /usr/local/bin/dockerize
+wget -O - $(wget -O - https://api.github.com/repos/ezintz/dockerize/releases/latest | grep -i /dockerize-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)\" | cut -d\" -f4) | install /dev/stdin /usr/local/bin/dockerize
 
 ### busybox: specific version
-wget -O - https://github.com/ezintz/dockerize/releases/download/v0.16.3/dockerize-`uname -s`-`uname -m` | install /dev/stdin /usr/local/bin/dockerize
+wget -O - https://github.com/ezintz/dockerize/releases/download/v0.17.0/dockerize-`uname -s | tr '[:upper:]' '[:lower:]'`-`uname -m` | install /dev/stdin /usr/local/bin/dockerize
 ```
 
-PGP public key for verifying signed binaries: https://powerman.name/about/Powerman.asc
+### Verifying releases (SLSA provenance & cosign)
 
+Starting with v0.17.0, every release is built by [GoReleaser](https://goreleaser.com) in
+GitHub Actions and ships with:
+
+* a single `checksums.txt` covering all binaries (replaces the old per-binary `.sha256` files),
+* a [SLSA level 3](https://slsa.dev) provenance attestation for the release binaries,
+* a cosign keyless signature (Sigstore) over `checksums.txt`,
+* an SBOM, and
+* SLSA3 provenance attached as an OCI attestation on the container images (see below).
+
+Verify a downloaded binary against its checksum and provenance with
+[`slsa-verifier`](https://github.com/slsa-framework/slsa-verifier):
+
+```sh
+slsa-verifier verify-artifact dockerize-linux-x86_64 \
+  --provenance-path dockerize_0.17.0_checksums.txt.intoto.jsonl \
+  --source-uri github.com/ezintz/dockerize \
+  --source-tag v0.17.0
 ```
-curl -sfL https://powerman.name/about/Powerman.asc | gpg --import
-curl -sfL https://github.com/ezintz/dockerize/releases/download/v0.16.3/dockerize-`uname -s`-`uname -m`.asc >dockerize.asc
-gpg --verify dockerize.asc /usr/local/bin/dockerize
+
+Or verify the checksum file's cosign signature directly:
+
+```sh
+cosign verify-blob checksums.txt \
+  --signature checksums.txt.sig --certificate checksums.txt.pem \
+  --certificate-identity-regexp 'https://github.com/ezintz/dockerize' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
 ### Docker Base Image
@@ -110,6 +132,24 @@ FROM ezintz/dockerize
 ...
 ENTRYPOINT dockerize ...
 ```
+
+Images are published to both Docker Hub (`ezintz/dockerize`) and
+[GHCR](https://ghcr.io) (`ghcr.io/ezintz/dockerize`); GHCR is the source of truth for
+image provenance/attestations:
+
+```sh
+docker pull ghcr.io/ezintz/dockerize:latest
+cosign verify-attestation --type slsaprovenance \
+  --certificate-identity-regexp 'https://github.com/ezintz/dockerize' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/ezintz/dockerize:latest
+```
+
+A hardened variant built on [Chainguard](https://www.chainguard.dev/chainguard-images)'s
+distroless `static` base image (no shell, no package manager, minimal CVEs) is published
+alongside the Alpine-based default under the `-chainguard` tag suffix
+(`ezintz/dockerize:latest-chainguard`). It's not suitable as a `FROM` base for images that
+need a shell or `apk` -- use the default Alpine-based image for that.
 
 ## Usage
 

@@ -1,9 +1,6 @@
-//nolint:testpackage // By design.
 package main
 
 import (
-	"context"
-	"io/ioutil"
 	"net"
 	"os"
 	"strconv"
@@ -17,7 +14,6 @@ import (
 var (
 	testTimeFactor = floatGetenv("GO_TEST_TIME_FACTOR", 1.0)
 	testSecond     = time.Duration(testTimeFactor) * time.Second //nolint:revive // By design.
-	testCtx        = context.Background()
 )
 
 func floatGetenv(name string, def float64) float64 {
@@ -42,7 +38,7 @@ func (c *checkC) NoErrListen(v net.Listener, err error) net.Listener {
 
 func (c *checkC) TempPath() string {
 	c.Helper()
-	f := c.NoErrFile(ioutil.TempFile("", "gotest"))
+	f := c.NoErrFile(os.CreateTemp("", "gotest"))
 	c.Nil(f.Close())
 	c.Nil(os.Remove(f.Name()))
 	return f.Name()

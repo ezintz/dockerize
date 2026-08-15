@@ -1,11 +1,9 @@
-//nolint:testpackage // By design.
 package main
 
 import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -23,7 +21,7 @@ import (
 func TestFlagHelp(tt *testing.T) {
 	t := check.T(tt)
 	t.Parallel()
-	out, err := testexec.Func(testCtx, t, main, "-h").CombinedOutput()
+	out, err := testexec.Func(t, main, "-h").CombinedOutput()
 	t.Nil(err)
 	t.Match(out, "Usage:")
 }
@@ -31,7 +29,7 @@ func TestFlagHelp(tt *testing.T) {
 func TestFlagVersion(tt *testing.T) {
 	t := check.T(tt)
 	t.Parallel()
-	out, err := testexec.Func(testCtx, t, main, "-version").CombinedOutput()
+	out, err := testexec.Func(t, main, "-version").CombinedOutput()
 	t.Nil(err)
 	t.Match(out, ver)
 }
@@ -103,12 +101,11 @@ func TestFlag(tt *testing.T) {
 		{[]string{"-stdout", "", "-stdout", " ", "-stderr", "  "}, ``},
 	}
 	for _, v := range cases {
-		v := v
 		t.Run(strings.Join(v.flags, " "), func(tt *testing.T) {
 			t := check.T(tt)
 			t.Parallel()
 			flags := append(v.flags, "-version") //nolint:gocritic // By design.
-			out, err := testexec.Func(testCtx, t, main, flags...).CombinedOutput()
+			out, err := testexec.Func(t, main, flags...).CombinedOutput()
 			if v.want == "" {
 				t.Nil(err)
 				t.Match(out, ver)
@@ -123,7 +120,7 @@ func TestFlag(tt *testing.T) {
 func TestFailedINI(tt *testing.T) {
 	t := check.T(tt)
 	t.Parallel()
-	out, err := testexec.Func(testCtx, t, main, "-exit-code", "42", "-env", "nosuch.ini").CombinedOutput()
+	out, err := testexec.Func(t, main, "-exit-code", "42", "-env", "nosuch.ini").CombinedOutput()
 	t.Match(err, "exit status 42")
 	t.Match(out, `nosuch.ini: no such file`)
 }
@@ -131,7 +128,7 @@ func TestFailedINI(tt *testing.T) {
 func TestFailedTemplate(tt *testing.T) {
 	t := check.T(tt)
 	t.Parallel()
-	out, err := testexec.Func(testCtx, t, main, "-template", "nosuch.tmpl").CombinedOutput()
+	out, err := testexec.Func(t, main, "-template", "nosuch.tmpl").CombinedOutput()
 	t.Match(err, "exit status 123")
 	t.Match(out, `nosuch.tmpl: no such file`)
 }
@@ -139,7 +136,7 @@ func TestFailedTemplate(tt *testing.T) {
 func TestFailedStrictTemplate(tt *testing.T) {
 	t := check.T(tt)
 	t.Parallel()
-	out, err := testexec.Func(testCtx, t, main, "-template", "testdata/src1.tmpl", "-template-strict").CombinedOutput()
+	out, err := testexec.Func(t, main, "-template", "testdata/src1.tmpl", "-template-strict").CombinedOutput()
 	t.Match(err, "exit status 123")
 	t.Match(out, `no entry for key "C"`)
 }
@@ -147,7 +144,7 @@ func TestFailedStrictTemplate(tt *testing.T) {
 func TestFailedWait(tt *testing.T) {
 	t := check.T(tt)
 	t.Parallel()
-	out, err := testexec.Func(testCtx, t, main, "-wait", "file:///nosuch", "-timeout", "0.1s").CombinedOutput()
+	out, err := testexec.Func(t, main, "-wait", "file:///nosuch", "-timeout", "0.1s").CombinedOutput()
 	t.Match(err, "exit status 123")
 	t.Match(out, `/nosuch: no such file`)
 }
@@ -155,7 +152,7 @@ func TestFailedWait(tt *testing.T) {
 func TestNothing(tt *testing.T) {
 	t := check.T(tt)
 	t.Parallel()
-	out, err := testexec.Func(testCtx, t, main).CombinedOutput()
+	out, err := testexec.Func(t, main).CombinedOutput()
 	t.Nil(err)
 	t.Match(out, `^$`)
 }
@@ -168,14 +165,14 @@ func TestTail(tt *testing.T) {
 	var logn [4]string
 	if os.Getenv("GO_WANT_HELPER_PROCESS") == "" { // don't do this again in subprocess
 		for i := range logf {
-			logf[i] = t.NoErrFile(ioutil.TempFile("", "gotest"))
+			logf[i] = t.NoErrFile(os.CreateTemp("", "gotest")) //nolint:usetesting // By design: subprocess-forking test harness manages its own cleanup.
 			logn[i] = logf[i].Name()
 			defer os.Remove(logn[i]) //nolint:gocritic,revive // By design.
 			defer logf[i].Close()    //nolint:gocritic,revive // By design.
 		}
 	}
 
-	cmd := testexec.Func(testCtx, t, main,
+	cmd := testexec.Func(t, main,
 		"-stdout", logn[0], "-stdout", logn[1],
 		"-stderr", logn[2], "-stderr", logn[3],
 	)
@@ -205,7 +202,7 @@ func TestWaitList(tt *testing.T) {
 
 	var logn, filen, unixn string
 	if os.Getenv("GO_WANT_HELPER_PROCESS") == "" { // don't do this again in subprocess
-		logf := t.NoErrFile(ioutil.TempFile("", "gotest"))
+		logf := t.NoErrFile(os.CreateTemp("", "gotest")) //nolint:usetesting // By design: subprocess-forking test harness manages its own cleanup.
 		logn = logf.Name()
 		defer os.Remove(logn)
 		defer logf.Close()
@@ -221,7 +218,7 @@ func TestWaitList(tt *testing.T) {
 	ts := httptest.NewUnstartedServer(mux)
 	defer ts.Close()
 
-	cmd := testexec.Func(testCtx, t, main,
+	cmd := testexec.Func(t, main,
 		"-env", "testdata/env1.ini",
 		"-template", "testdata/src1.tmpl",
 		"-no-overwrite",
@@ -250,7 +247,7 @@ func TestWaitList(tt *testing.T) {
 	mux.HandleFunc("/redirect", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/ok", http.StatusFound)
 	})
-	mux.HandleFunc("/ok", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/ok", func(_ http.ResponseWriter, _ *http.Request) {
 		callOK = true
 	})
 	ts.Start()
@@ -270,7 +267,7 @@ func TestSmoke1(tt *testing.T) {
 
 	var logn, filen, unixn string
 	if os.Getenv("GO_WANT_HELPER_PROCESS") == "" { // don't do this again in subprocess
-		logf := t.NoErrFile(ioutil.TempFile("", "gotest"))
+		logf := t.NoErrFile(os.CreateTemp("", "gotest")) //nolint:usetesting // By design: subprocess-forking test harness manages its own cleanup.
 		logn = logf.Name()
 		defer os.Remove(logn)
 		defer logf.Close()
@@ -286,7 +283,7 @@ func TestSmoke1(tt *testing.T) {
 	ts := httptest.NewUnstartedServer(mux)
 	defer ts.Close()
 
-	cmd := testexec.Func(testCtx, t, main,
+	cmd := testexec.Func(t, main,
 		"-env", "testdata/env1.ini",
 		"-template", "testdata/src1.tmpl",
 		"-no-overwrite",
@@ -317,7 +314,7 @@ func TestSmoke1(tt *testing.T) {
 	mux.HandleFunc("/redirect", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/ok", http.StatusFound)
 	})
-	mux.HandleFunc("/ok", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/ok", func(_ http.ResponseWriter, _ *http.Request) {
 		callOK = true
 	})
 	ts.Start()
@@ -343,7 +340,7 @@ func TestSmoke2(tt *testing.T) {
 	ts := httptest.NewUnstartedServer(mux)
 	defer ts.Close()
 
-	cmd := testexec.Func(testCtx, t, main,
+	cmd := testexec.Func(t, main,
 		"-env", "https://"+ts.Listener.Addr().String()+"/ini",
 		"-multiline",
 		"-env-section", "Vars",

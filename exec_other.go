@@ -1,4 +1,4 @@
-// +build !linux
+//go:build !linux
 
 package main
 
@@ -6,4 +6,4 @@ import (
 	"os/exec"
 )
 
-func setSysProcAttr(cmd *exec.Cmd) {}
+func setSysProcAttr(*exec.Cmd) {}

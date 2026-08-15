@@ -1,0 +1,10 @@
+# hadolint ignore=DL3007
+FROM cgr.dev/chainguard/static:latest
+
+LABEL org.opencontainers.image.source="https://github.com/ezintz/dockerize"
+
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/dockerize /usr/local/bin/dockerize
+
+ENTRYPOINT ["/usr/local/bin/dockerize"]
+CMD ["--help"]

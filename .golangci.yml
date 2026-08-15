@@ -147,41 +147,17 @@ linters-settings:
     #disable-dec-num-check: true
 
   depguard:
-    # Kind of list is passed in.
-    # Allowed values: allowlist|denylist
-    # Default: denylist
-    #list-type: denylist
-
-    # Check the list against standard lib.
-    # Default: false
-    include-go-root: true
-
-    # A list of packages for the list type specified.
-    # Default: []
-    packages:
-      #- log
-      - github.com/go-errors/errors
-      - github.com/pkg/errors
-      - github.com/prometheus/client_golang/prometheus/promauto
-      - github.com/prometheus/common/log
-      - github.com/golang/protobuf
-
-    # A list of packages for the list type specified.
-    # Specify an error message to output when a denied package is used.
-    # Default: []
-    packages-with-error-message:
-      #- log: "logging is allowed only by github.com/powerman/structlog"
-
-    # Create additional guards that follow the same configuration pattern.
-    # Results from all guards are aggregated together.
-    #additional-guards:
-    #  - list-type: denylist
-    #    include-go-root: false
-    #    packages:
-    #      - github.com/stretchr/testify
-    #    # Specify rules by which the linter ignores certain files for consideration.
-    #    ignore-file-rules:
-    #      - "**/*_test.go"
+    # depguard v2 (golangci-lint >= 1.53) config: named rule sets.
+    # list-mode: lax == old denylist behavior (allowed unless denied).
+    rules:
+      Main:
+        list-mode: lax
+        deny:
+          - pkg: github.com/go-errors/errors
+          - pkg: github.com/pkg/errors
+          - pkg: github.com/prometheus/client_golang/prometheus/promauto
+          - pkg: github.com/prometheus/common/log
+          - pkg: github.com/golang/protobuf
     #      - "**/mock/**/*.go"
 
   dogsled:
@@ -327,7 +303,7 @@ linters-settings:
     sections:
      - standard                       # Captures all standard packages if they do not match another section.
      - default                        # Contains all imports that could not be matched to another section type.
-     - prefix(github.com/powerman/dockerize) # Groups all imports with the specified Prefix.
+     - prefix(github.com/ezintz/dockerize) # Groups all imports with the specified Prefix.
     #  - comment(your text here)        # Prints the specified indented comment.
     #  - newLine                        # Prints an empty line
 
@@ -568,7 +544,7 @@ linters-settings:
   goimports:
     # Put imports beginning with prefix after 3rd-party packages.
     # It's a comma-separated list of prefixes.
-    local-prefixes: github.com/powerman/dockerize
+    local-prefixes: github.com/ezintz/dockerize
 
   golint:
     # Minimal confidence for issues.

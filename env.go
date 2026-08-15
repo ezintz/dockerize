@@ -1,3 +1,5 @@
+// Package main implements dockerize, a utility to simplify running
+// applications in docker containers.
 package main
 
 import (

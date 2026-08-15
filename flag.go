@@ -17,7 +17,7 @@ var (
 	errLeftRightRequired    = errors.New("must be a left:right")
 )
 
-type stringsFlag []string
+type stringsFlag []string //nolint:recvcheck // flag.Value pattern: pointer Set, value String.
 
 func (f *stringsFlag) Set(value string) error {
 	*f = append(*f, value)
@@ -28,7 +28,7 @@ func (f stringsFlag) String() string {
 	return strings.Join(f, ",")
 }
 
-type urlsFlag []*url.URL
+type urlsFlag []*url.URL //nolint:recvcheck // flag.Value pattern: pointer Set, value String.
 
 func (f *urlsFlag) Set(value string) error {
 	u, err := url.Parse(value)
@@ -52,7 +52,7 @@ type httpHeader struct {
 	value string
 }
 
-type httpHeadersFlag []httpHeader
+type httpHeadersFlag []httpHeader //nolint:recvcheck // flag.Value pattern: pointer Set, value String.
 
 func (f *httpHeadersFlag) Set(value string) error {
 	buf, err := os.ReadFile(value) //nolint:gosec // File inclusion via variable.
@@ -86,7 +86,7 @@ func (f httpHeadersFlag) String() string {
 	return strings.Join(hs, ", ")
 }
 
-type statusCodesFlag []int
+type statusCodesFlag []int //nolint:recvcheck // flag.Value pattern: pointer Set, value String.
 
 func (f *statusCodesFlag) Set(value string) error {
 	i, err := strconv.Atoi(value)
@@ -108,7 +108,7 @@ func (f statusCodesFlag) String() string {
 	return strings.Join(ns, ", ")
 }
 
-type delimsFlag [2]string
+type delimsFlag [2]string //nolint:recvcheck // flag.Value pattern: pointer Set, value String.
 
 func (f *delimsFlag) Set(value string) error {
 	delims := strings.Split(value, ":")
