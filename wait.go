@@ -57,7 +57,7 @@ func waitForURLs(cfg waitConfig, urls []*url.URL) error {
 			case schemeMySQL:
 				go waitForMySQL(ctx, cfg, u, readyc)
 			default:
-				return fmt.Errorf("%w: %s", errSchemeNotSupported, u)
+				return fmt.Errorf("%w: %s", errSchemeNotSupported, u.Redacted())
 			}
 		}
 	}
@@ -65,11 +65,11 @@ func waitForURLs(cfg waitConfig, urls []*url.URL) error {
 	for len(waiting) > 0 {
 		select {
 		case u := <-readyc:
-			log.Printf("Ready: %s.", u)
+			log.Printf("Ready: %s.", u.Redacted())
 			delete(waiting, u)
 		case <-ctx.Done():
 			for s := range waiting {
-				return fmt.Errorf("%w: %s", errTimedOut, s)
+				return fmt.Errorf("%w: %s", errTimedOut, s.Redacted())
 			}
 			panic("internal error")
 		}
@@ -83,7 +83,7 @@ func waitForPath(ctx context.Context, cfg waitConfig, u *url.URL, readyc chan<- 
 		if err == nil {
 			break
 		}
-		log.Printf("Waiting for %s: %s.", u, err)
+		log.Printf("Waiting for %s: %s.", u.Redacted(), err)
 		select {
 		case <-time.After(cfg.delay):
 		case <-ctx.Done():
@@ -107,7 +107,7 @@ func waitForSocket(ctx context.Context, cfg waitConfig, u *url.URL, readyc chan<
 			warnIfFail(conn.Close)
 			break
 		}
-		log.Printf("Waiting for %s: %s.", u, err)
+		log.Printf("Waiting for %s: %s.", u.Redacted(), err)
 		select {
 		case <-time.After(cfg.delay):
 		case <-ctx.Done():
@@ -162,7 +162,7 @@ func waitForHTTP(ctx context.Context, cfg waitConfig, u *url.URL, readyc chan<- 
 			}
 			err = fmt.Errorf("%w: %d", errUnexpectedStatusCode, resp.StatusCode)
 		}
-		log.Printf("Waiting for %s: %s.", u, err)
+		log.Printf("Waiting for %s: %s.", u.Redacted(), err)
 		select {
 		case <-time.After(cfg.delay):
 		case <-ctx.Done():
@@ -185,7 +185,7 @@ func waitForMySQL(ctx context.Context, cfg waitConfig, u *url.URL, readyc chan<-
 			break
 		}
 
-		log.Printf("Waiting for %s: %s.", u, err)
+		log.Printf("Waiting for %s: %s.", u.Redacted(), err)
 		select {
 		case <-time.After(cfg.delay):
 		case <-ctx.Done():
@@ -224,7 +224,7 @@ func waitForAMQP(ctx context.Context, cfg waitConfig, u *url.URL, readyc chan<- 
 			break
 		}
 
-		log.Printf("Waiting for %s: %s.", u, err)
+		log.Printf("Waiting for %s: %s.", u.Redacted(), err)
 		select {
 		case <-time.After(cfg.delay):
 		case <-ctx.Done():
