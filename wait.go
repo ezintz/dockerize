@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -12,8 +13,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
+	_ "github.com/go-sql-driver/mysql"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -51,6 +54,8 @@ func waitForURLs(cfg waitConfig, urls []*url.URL) error {
 				go waitForHTTP(ctx, cfg, u, readyc)
 			case schemeAMQP, schemeAMQPS:
 				go waitForAMQP(ctx, cfg, u, readyc)
+			case schemeMySQL:
+				go waitForMySQL(ctx, cfg, u, readyc)
 			default:
 				return fmt.Errorf("%w: %s", errSchemeNotSupported, u)
 			}
@@ -127,6 +132,7 @@ func waitForHTTP(ctx context.Context, cfg waitConfig, u *url.URL, readyc chan<- 
 
 	client := &http.Client{ //nolint:exhaustruct // Only overriding non-default fields.
 		Transport: &http.Transport{ //nolint:exhaustruct // Only overriding non-default fields.
+			Proxy: http.ProxyFromEnvironment,
 			TLSClientConfig: &tls.Config{ //nolint:exhaustruct // Only overriding non-default fields.
 				InsecureSkipVerify: cfg.skipTLSVerify, //nolint:gosec // TLS InsecureSkipVerify may be true.
 				RootCAs:            cfg.ca,
@@ -141,12 +147,12 @@ func waitForHTTP(ctx context.Context, cfg waitConfig, u *url.URL, readyc chan<- 
 	var resp *http.Response
 
 	for {
-		req, err := http.NewRequest(http.MethodGet, u.String(), http.NoBody)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
 		if err == nil {
 			for _, h := range cfg.headers {
 				req.Header.Add(h.name, h.value)
 			}
-			resp, err = client.Do(req.WithContext(ctx))
+			resp, err = client.Do(req)
 		}
 		if err == nil {
 			_, _ = io.Copy(io.Discard, resp.Body)
@@ -165,6 +171,36 @@ func waitForHTTP(ctx context.Context, cfg waitConfig, u *url.URL, readyc chan<- 
 	}
 
 	readyc <- u
+}
+
+func waitForMySQL(ctx context.Context, cfg waitConfig, u *url.URL, readyc chan<- *url.URL) {
+	dsn := mysqlDSN(u)
+	for {
+		db, err := sql.Open("mysql", dsn)
+		if err == nil {
+			err = db.PingContext(ctx)
+			_ = db.Close()
+		}
+		if err == nil {
+			break
+		}
+
+		log.Printf("Waiting for %s: %s.", u, err)
+		select {
+		case <-time.After(cfg.delay):
+		case <-ctx.Done():
+			return
+		}
+	}
+
+	readyc <- u
+}
+
+func mysqlDSN(u *url.URL) string {
+	dsn := &url.URL{} //nolint:exhaustruct // Only overriding non-default fields.
+	*dsn = *u
+	dsn.Host = "tcp(" + dsn.Host + ")"
+	return strings.TrimPrefix(dsn.String(), "mysql://")
 }
 
 func waitForAMQP(ctx context.Context, cfg waitConfig, u *url.URL, readyc chan<- *url.URL) { //nolint:interfacer // False positive.

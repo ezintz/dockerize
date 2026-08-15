@@ -54,6 +54,7 @@ func loadINISection(cfg iniConfig) (map[string]string, error) {
 func fetchINI(cfg iniConfig) (data []byte, err error) { //nolint:nonamedreturns // Named for godoc clarity.
 	client := &http.Client{ //nolint:exhaustruct // Only overriding non-default fields.
 		Transport: &http.Transport{ //nolint:exhaustruct // Only overriding non-default fields.
+			Proxy: http.ProxyFromEnvironment,
 			TLSClientConfig: &tls.Config{ //nolint:exhaustruct // Only overriding non-default fields.
 				InsecureSkipVerify: cfg.skipTLSVerify, //nolint:gosec // TLS InsecureSkipVerify may be true.
 				RootCAs:            cfg.ca,

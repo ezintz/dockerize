@@ -6,9 +6,11 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -22,6 +24,7 @@ const (
 	schemeHTTPS          = "https"
 	schemeAMQP           = "amqp"
 	schemeAMQPS          = "amqps"
+	schemeMySQL          = "mysql"
 	defWaitTimeout       = 10 * time.Second
 	defWaitRetryInterval = time.Second
 	exitCodeUsage        = 2
@@ -46,6 +49,7 @@ var (
 		tailStderr    stringsFlag
 		exitCodeFatal int
 		waitList      string
+		exec          bool
 	}
 )
 
@@ -60,7 +64,7 @@ func init() { //nolint:gochecknoinits // By design.
 	flag.BoolVar(&cfg.template.noOverwrite, "no-overwrite", false, "do not overwrite existing destination file from template")
 	flag.BoolVar(&cfg.template.strict, "template-strict", false, "fail if template mention unset environment variable")
 	flag.Var(&cfg.template.delims, "delims", "action delimiters in templates")
-	flag.Var(&cfg.waitURLs, "wait", "wait for `url` (file/tcp/tcp4/tcp6/unix/http/https/amqp/amqps)\ncan be passed multiple times")
+	flag.Var(&cfg.waitURLs, "wait", "wait for `url` (file/tcp/tcp4/tcp6/unix/http/https/amqp/amqps/mysql)\ncan be passed multiple times")
 	flag.Var(&cfg.wait.headers, "wait-http-header", "`name:value` for HTTP header to send\n(if -wait use HTTP)\ncan be passed multiple times")
 	flag.BoolVar(&cfg.wait.skipTLSVerify, "skip-tls-verify", false, "skip TLS verification for HTTPS/AMQPS -wait and -env urls")
 	flag.StringVar(&cfg.caCert, "cacert", "", "path to CA certificate for HTTPS/AMQPS -wait and -env urls")
@@ -72,6 +76,7 @@ func init() { //nolint:gochecknoinits // By design.
 	flag.Var(&cfg.tailStderr, "stderr", "file `path` to tail to stderr\ncan be passed multiple times")
 	flag.IntVar(&cfg.exitCodeFatal, "exit-code", exitCodeFatal, "exit code for dockerize errors")
 	flag.StringVar(&cfg.waitList, "wait-list", "", "a space-separated list of URLs to wait for\ncan be combined with -wait flag")
+	flag.BoolVar(&cfg.exec, "exec", false, "replace dockerize process with given command")
 
 	flag.Usage = usage
 }
@@ -101,7 +106,7 @@ func main() { //nolint:gocyclo,gocognit,funlen // TODO Refactor?
 
 	for _, u := range cfg.waitURLs {
 		switch u.Scheme {
-		case schemeFile, schemeTCP, schemeTCP4, schemeTCP6, schemeUnix:
+		case schemeFile, schemeTCP, schemeTCP4, schemeTCP6, schemeUnix, schemeMySQL:
 		case schemeHTTP, schemeHTTPS:
 			waitHTTP = true
 		case schemeAMQP:
@@ -128,7 +133,7 @@ func main() { //nolint:gocyclo,gocognit,funlen // TODO Refactor?
 	case cfg.template.delims[0] != "" && len(cfg.templatePaths) == 0:
 		fatalFlagValue("require -template", "delims", cfg.template.delims)
 	case waitBadScheme:
-		fatalFlagValue("scheme must be file/tcp/tcp4/tcp6/unix/http/https/amqp/amqps", "wait", cfg.waitURLs)
+		fatalFlagValue("scheme must be file/tcp/tcp4/tcp6/unix/http/https/amqp/amqps/mysql", "wait", cfg.waitURLs)
 	case len(cfg.wait.headers) > 0 && !waitHTTP:
 		fatalFlagValue("require -wait with HTTP url", "wait-http-header", cfg.wait.headers)
 	case len(cfg.wait.statusCodes) > 0 && !waitHTTP:
@@ -139,6 +144,10 @@ func main() { //nolint:gocyclo,gocognit,funlen // TODO Refactor?
 		fatalFlagValue("require -wait/-env with HTTP url", "skip-tls-verify", cfg.wait.skipTLSVerify)
 	case cfg.caCert != "" && !iniHTTP && !waitHTTP && !waitAMQPS:
 		fatalFlagValue("require -wait/-env with HTTP url", "cacert", cfg.caCert)
+	case cfg.exec && len(cfg.tailStdout)+len(cfg.tailStderr) > 0:
+		fatalFlagValue("using -exec with -stdout/-stderr is not supported", "exec", cfg.exec)
+	case cfg.exec && flag.NArg() == 0:
+		fatalFlagValue("require command to exec", "exec", cfg.exec)
 	case cfg.version:
 		fmt.Println(app, ver, runtime.Version())
 		os.Exit(0)
@@ -181,6 +190,14 @@ func main() { //nolint:gocyclo,gocognit,funlen // TODO Refactor?
 	}
 
 	switch {
+	case cfg.exec:
+		arg0, err := exec.LookPath(flag.Arg(0))
+		if err == nil {
+			err = syscall.Exec(arg0, flag.Args(), os.Environ()) //nolint:gosec // False positive.
+		}
+		if err != nil {
+			fatalf("Failed to run command: %s.", err)
+		}
 	case flag.NArg() > 0:
 		code, err := runCmd(flag.Arg(0), flag.Args()[1:]...)
 		if err != nil {

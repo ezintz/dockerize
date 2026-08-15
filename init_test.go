@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/powerman/check"
-	_ "github.com/smartystreets/goconvey/convey"
 )
 
 var (

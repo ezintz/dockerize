@@ -195,6 +195,7 @@ $ dockerize -no-overwrite -template template1.tmpl:file
 ```
 
 You can tail multiple files to `STDOUT` and `STDERR` by passing the options multiple times.
+(These options can't be combined with `-exec`.)
 
 ```
 $ dockerize -stdout info.log -stdout perf.log
@@ -234,14 +235,21 @@ HTTP redirects can be ignored:
 $ dockerize -wait http://web:80 -wait-http-skip-redirect
 ```
 
+Dockerize process can be replaced with given command.
+(This can't be combined with `-stdout`/`-stderr`.)
+
+```
+$ dockerize -exec some-command args...
+```
+
 ### Waiting for other dependencies
 
 It is common when using tools like [Docker Compose](https://docs.docker.com/compose/) to depend on services in other linked containers, however oftentimes relying on [links](https://docs.docker.com/compose/compose-file/#links) is not enough - whilst the container itself may have _started_, the _service(s)_ within it may not yet be ready - resulting in shell script hacks to work around race conditions.
 
-Dockerize gives you the ability to wait for services on a specified protocol (`file`, `tcp`, `tcp4`, `tcp6`, `http`, `https`, `amqp`, `amqps` and `unix`) before starting your application:
+Dockerize gives you the ability to wait for services on a specified protocol (`file`, `tcp`, `tcp4`, `tcp6`, `http`, `https`, `amqp`, `amqps`, `mysql` and `unix`) before starting your application:
 
 ```
-$ dockerize -wait tcp://db:5432 -wait http://web:80 -wait file:///tmp/generated-file
+$ dockerize -wait tcp://db:5432 -wait http://web:80 -wait file:///tmp/generated-file -wait mysql://user:pass@db:3306/dbname
 ```
 
 Multiple URLs can also be specified with `-wait-list` flag, that accept a space-separated list of URLs. The behaviour is equivalent to use multiple `-wait` flags.

@@ -40,10 +40,13 @@ func runCmd(name string, args ...string) (int, error) {
 		}
 	}()
 
-	_ = cmd.Wait()
+	err = cmd.Wait()
 
 	signal.Stop(sigc)
 	close(sigc)
 
-	return cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus(), nil
+	if cmd.ProcessState != nil {
+		return cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus(), nil //nolint:forcetypeassert // Unix-only.
+	}
+	return 0, err
 }

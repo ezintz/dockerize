@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -70,10 +71,11 @@ func TestFlag(tt *testing.T) {
 		{[]string{"-delims", "a a:b"}, `left:right`},
 		{[]string{"-delims", "a:b"}, `-template`},
 		{[]string{"-delims", " a: b ", "-template", "a"}, ``},
-		{[]string{"-wait", ""}, `file/tcp/tcp4/tcp6/unix/http/https/amqp/amqps`},
-		{[]string{"-wait", "/dev/null"}, `file/tcp/tcp4/tcp6/unix/http/https/amqp/amqps`},
+		{[]string{"-wait", ""}, `file/tcp/tcp4/tcp6/unix/http/https/amqp/amqps/mysql`},
+		{[]string{"-wait", "/dev/null"}, `file/tcp/tcp4/tcp6/unix/http/https/amqp/amqps/mysql`},
 		{[]string{"-wait", "file:///dev/null", "-wait", "http:", "-wait", "https:"}, ``},
 		{[]string{"-wait", "tcp:", "-wait", "tcp4:", "-wait", "tcp6:", "-wait", "unix:"}, ``},
+		{[]string{"-wait", "mysql://127.0.0.1:3306/db"}, ``},
 		{[]string{"-wait-list", "tcp: tcp4: http: https: unix: file:"}, ``},
 		{[]string{"-wait-http-header", ""}, `name:value`},
 		{[]string{"-wait-http-header", "a:b"}, `-wait with HTTP`},
@@ -99,6 +101,9 @@ func TestFlag(tt *testing.T) {
 		{[]string{"-timeout", "1s"}, ``},
 		{[]string{"-wait-retry-interval", "1s"}, ``},
 		{[]string{"-stdout", "", "-stdout", " ", "-stderr", "  "}, ``},
+		{[]string{"-exec"}, `require command to exec`},
+		{[]string{"-exec", "-stdout", "/dev/null"}, `not supported`},
+		{[]string{"-exec", "-stderr", "/dev/null"}, `not supported`},
 	}
 	for _, v := range cases {
 		t.Run(strings.Join(v.flags, " "), func(tt *testing.T) {
@@ -422,4 +427,26 @@ func TestSmoke2(tt *testing.T) {
 	t.Equal(string(buf), "A=10 B=20 C=32\n    777\n")
 	buf = t.NoErrBuf(os.ReadFile(dstDir + "/subdir/func"))
 	t.Equal(string(buf), "abc exists\nexample.com\nTrue!False!\nJSON value\n0369\n")
+}
+
+func TestMySQLDSN(tt *testing.T) {
+	t := checkT(tt)
+	t.Parallel()
+
+	u := &url.URL{ //nolint:exhaustruct // Only overriding non-default fields.
+		Scheme: "mysql",
+		User:   url.UserPassword("user", "pass"),
+		Host:   "127.0.0.1:3306",
+		Path:   "/dbname",
+	}
+	dsn := mysqlDSN(u)
+	t.Equal(dsn, "user:pass@tcp(127.0.0.1:3306)/dbname")
+}
+
+func TestFailedWaitMySQL(tt *testing.T) {
+	t := check.T(tt)
+	t.Parallel()
+	out, err := testexec.Func(t, main, "-wait", "mysql://127.0.0.1:1", "-timeout", "0.1s").CombinedOutput()
+	t.Match(err, "exit status 123")
+	t.Match(out, "timed out")
 }
