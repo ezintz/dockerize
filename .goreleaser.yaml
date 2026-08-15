@@ -44,8 +44,28 @@ builds:
       - goos: darwin
         goarch: riscv64
 
+  # FIPS 140-3 compliant build using Go's native FIPS crypto module
+  # (GOFIPS140, stable since Go 1.24 -- https://go.dev/doc/security/fips140).
+  # Scoped to linux/amd64+arm64 to match the Chainguard base image platforms
+  # this feeds into via the dockerize-chainguard-fips docker image below.
+  - id: dockerize-fips
+    main: .
+    binary: dockerize
+    env:
+      - CGO_ENABLED=0
+      - GOFIPS140=latest
+    ldflags:
+      - -s -w -X 'main.ver={{ .Version }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
 archives:
   - formats: ["binary"]
+    ids:
+      - dockerize
     # Reproduces the previous dockerize-$OS-$ARCH naming from scripts/release.
     name_template: >-
       {{ .ProjectName }}-
@@ -138,6 +158,31 @@ dockers_v2:
       - linux/arm64
     annotations:
       "org.opencontainers.image.description": "Utility to simplify running applications in docker containers (Chainguard static base)."
+      "org.opencontainers.image.created": "{{ .Date }}"
+      "org.opencontainers.image.name": "{{ .ProjectName }}"
+      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.source": "{{ .GitURL }}"
+
+  # Same Chainguard static base, but the binary is built with Go's native
+  # FIPS 140-3 crypto module (GOFIPS140=latest, see the dockerize-fips build
+  # above). This does not require any Chainguard Enterprise/FIPS entitlement
+  # -- the base image is the same freely-pullable cgr.dev/chainguard/static.
+  - id: dockerize-chainguard-fips
+    ids:
+      - dockerize-fips
+    dockerfile: Dockerfile.chainguard
+    images:
+      - docker.io/ezintz/dockerize
+      - ghcr.io/ezintz/dockerize
+    tags:
+      - "{{ .Version }}-chainguard-fips"
+      - "{{ if not .IsNightly }}latest-chainguard-fips{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    annotations:
+      "org.opencontainers.image.description": "Utility to simplify running applications in docker containers (Chainguard static base, FIPS 140-3 Go crypto module)."
       "org.opencontainers.image.created": "{{ .Date }}"
       "org.opencontainers.image.name": "{{ .ProjectName }}"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"

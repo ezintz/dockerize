@@ -180,24 +180,44 @@ ENTRYPOINT ["/usr/local/bin/dockerize"]
 
 ### FIPS 140-3 compliant builds
 
-Chainguard's FIPS-validated image variants (tagged `-fips`) are only offered for specific
+Chainguard's own FIPS-validated image variants (tagged `-fips`) are only offered for specific
 bundled applications with their own crypto stacks (e.g. `adminer-fips`, `adoptium-jdk-fips`) as
 part of Chainguard's paid Enterprise tier -- there's no generic FIPS-validated `static`/
-distroless base image to swap in for an arbitrary compiled binary like `dockerize`, so this
-project doesn't build or publish a `-chainguard-fips` variant.
+distroless base image to pull directly.
 
-What actually determines FIPS 140-3 compliance for a Go binary is which cryptographic module it
-was *built* with, not which base image it runs in. Since Go 1.24, the toolchain has native
-support for this via the `GOFIPS140` build-time variable, which links in a validated Go
-Cryptographic Module instead of the default `crypto/*` implementations:
+What actually determines FIPS 140-3 compliance for a Go binary, though, is which cryptographic
+module it was *built* with, not which base image it runs in. Since Go 1.24, the toolchain has
+native support for this via the `GOFIPS140` build-time variable, which links in a validated Go
+Cryptographic Module instead of the default `crypto/*` implementations. This project builds
+`dockerize` itself with `GOFIPS140=latest` and publishes it on top of the same freely-pullable
+`cgr.dev/chainguard/static` base used above -- no Chainguard subscription required. It's tagged
+with a `-chainguard-fips` suffix, published for `linux/amd64` and `linux/arm64`:
+
+```sh
+docker pull ghcr.io/ezintz/dockerize:latest-chainguard-fips
+cosign verify-attestation --type slsaprovenance \
+  --certificate-identity-regexp 'https://github.com/ezintz/dockerize' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/ezintz/dockerize:latest-chainguard-fips
+```
+
+You can confirm the FIPS crypto module is compiled in via `go version -m`:
+
+```sh
+$ go version -m dockerize
+...
+	build	DefaultGODEBUG=...,fips140=on,...
+	build	GOFIPS140=latest
+```
+
+To build it yourself instead (e.g. for a non-Chainguard base image, or a pinned module version
+rather than `latest`):
 
 ```sh
 GOFIPS140=latest CGO_ENABLED=0 go build -ldflags "-s -w" -o dockerize .
 ```
 
-Combine a `GOFIPS140`-built binary with the Chainguard `static` base above (or Alpine, if you
-need a shell) to get a FIPS 140-3 compliant `dockerize` build. See the
-[Go FIPS 140-3 documentation](https://go.dev/doc/security/fips140) for the full list of
+See the [Go FIPS 140-3 documentation](https://go.dev/doc/security/fips140) for the full list of
 `GOFIPS140` values (`latest`, a pinned module version, `inprocess`, `certified`) and platform
 support caveats.
 

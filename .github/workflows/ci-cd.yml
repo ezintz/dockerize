@@ -61,6 +61,8 @@ jobs:
       alpine-digest: ${{ steps.alpine-image.outputs.digest }}
       chainguard-image: ${{ steps.chainguard-image.outputs.name }}
       chainguard-digest: ${{ steps.chainguard-image.outputs.digest }}
+      chainguard-fips-image: ${{ steps.chainguard-fips-image.outputs.name }}
+      chainguard-fips-digest: ${{ steps.chainguard-fips-image.outputs.digest }}
     permissions:
       contents: write # to create the GitHub release and upload assets
       id-token: write # to sign with cosign (keyless/OIDC)
@@ -141,6 +143,20 @@ jobs:
           echo "name=$(echo "$image_and_digest" | cut -d'@' -f1 | cut -d':' -f1)" >> "$GITHUB_OUTPUT"
           echo "digest=$(echo "$image_and_digest" | cut -d'@' -f2)" >> "$GITHUB_OUTPUT"
 
+      - name: Chainguard FIPS image digest
+        id: chainguard-fips-image
+        env:
+          ARTIFACTS: ${{ steps.goreleaser.outputs.artifacts }}
+        run: |
+          set -euo pipefail
+          image_and_digest=$(echo "$ARTIFACTS" | jq -r '
+            .[] | select(.type=="Docker Image" and .extra.ID=="dockerize-chainguard-fips")
+                | select(.name | startswith("ghcr.io"))
+                | select(.name | contains(":latest") | not)
+                | "\(.name)@\(.extra.Digest)"' | head -n1)
+          echo "name=$(echo "$image_and_digest" | cut -d'@' -f1 | cut -d':' -f1)" >> "$GITHUB_OUTPUT"
+          echo "digest=$(echo "$image_and_digest" | cut -d'@' -f2)" >> "$GITHUB_OUTPUT"
+
   binary-provenance:
     needs: goreleaser
     permissions:
@@ -176,6 +192,20 @@ jobs:
     with:
       image: ${{ needs.goreleaser.outputs.chainguard-image }}
       digest: ${{ needs.goreleaser.outputs.chainguard-digest }}
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  chainguard-fips-image-provenance:
+    needs: goreleaser
+    permissions:
+      actions: read
+      id-token: write
+      packages: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: ${{ needs.goreleaser.outputs.chainguard-fips-image }}
+      digest: ${{ needs.goreleaser.outputs.chainguard-fips-digest }}
       registry-username: ${{ github.actor }}
     secrets:
       registry-password: ${{ secrets.GITHUB_TOKEN }}
