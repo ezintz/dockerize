@@ -46,6 +46,43 @@ jobs:
           scripts/cover
           .gobincache/goveralls -coverprofile=cover.out -service=GitHub
 
+  # Docker Hub only stores a single description per repository (not one per
+  # tag/version), so there's nothing to key this off besides "a release
+  # happened" -- same gating as goreleaser below. Runs independently of it
+  # (no shared artifacts) so a goreleaser failure doesn't block the README
+  # from being kept current.
+  #
+  # Pushes a short, version-agnostic overview rendered from
+  # README.dockerhub.tmpl.md rather than the full README.md: Docker Hub has
+  # no per-version docs, so the template links out to the full README at the
+  # exact tag being released instead of going stale or trying to cover every
+  # version inline.
+  dockerhub-readme:
+    needs: test
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Render Docker Hub description
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          # git tags/GitHub URLs keep the "v" prefix (e.g. v1.4.0); GoReleaser's
+          # {{ .Version }} used for the actual Docker image tags strips it (1.4.0).
+          DOCKER_TAG="${TAG#v}"
+          sed -e "s/__TAG__/$TAG/g" -e "s/__DOCKER_TAG__/$DOCKER_TAG/g" \
+            README.dockerhub.tmpl.md > /tmp/dockerhub-readme.md
+
+      - uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN }}
+          repository: ezintz/dockerize
+          readme-filepath: /tmp/dockerhub-readme.md
+          short-description: Utility to simplify running applications in docker containers.
+
   # Only version tags are published: SLSA provenance requires a versioned,
   # reproducible release, and GoReleaser's --snapshot mode (what would be
   # needed to publish from a bare main-branch commit) explicitly disables
