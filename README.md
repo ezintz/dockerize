@@ -22,6 +22,8 @@ in PR comments after your PR has being merged.
 - [Installation](#installation)
   - [Verifying releases (SLSA provenance & cosign)](#verifying-releases-slsa-provenance--cosign)
   - [Docker Base Image](#docker-base-image)
+  - [Chainguard hardened image](#chainguard-hardened-image)
+  - [FIPS 140-3 compliant builds](#fips-140-3-compliant-builds)
 - [Usage](#usage)
   - [Command-line Options](#command-line-options)
   - [Waiting for other dependencies](#waiting-for-other-dependencies)
