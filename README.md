@@ -146,11 +146,58 @@ cosign verify-attestation --type slsaprovenance \
   ghcr.io/ezintz/dockerize:latest
 ```
 
-A hardened variant built on [Chainguard](https://www.chainguard.dev/chainguard-images)'s
-distroless `static` base image (no shell, no package manager, minimal CVEs) is published
-alongside the Alpine-based default under the `-chainguard` tag suffix
-(`ezintz/dockerize:latest-chainguard`). It's not suitable as a `FROM` base for images that
-need a shell or `apk` -- use the default Alpine-based image for that.
+### Chainguard hardened image
+
+A hardened variant is published alongside the Alpine-based default, built on
+[Chainguard](https://www.chainguard.dev/chainguard-images)'s distroless `static` base image
+(`cgr.dev/chainguard/static`): no shell, no package manager, and a near-zero CVE count since
+Chainguard rebuilds it daily. It's tagged with a `-chainguard` suffix and published for
+`linux/amd64` and `linux/arm64` (the only platforms Chainguard itself publishes `static` for):
+
+```sh
+docker pull ghcr.io/ezintz/dockerize:latest-chainguard
+cosign verify-attestation --type slsaprovenance \
+  --certificate-identity-regexp 'https://github.com/ezintz/dockerize' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/ezintz/dockerize:latest-chainguard
+```
+
+Because the base image has no shell or package manager, it isn't a suitable `FROM` base for
+images that need to `RUN apk add ...` or `RUN sh -c ...` alongside `dockerize` -- use the
+default Alpine-based image for that. It works well either as the final stage of your own image
+(if your application's entrypoint doesn't need a shell either) or as a multi-stage `COPY`
+source to grab just the `dockerize` binary onto another Chainguard base:
+
+```Dockerfile
+FROM ghcr.io/ezintz/dockerize:latest-chainguard AS dockerize
+FROM cgr.dev/chainguard/static:latest
+COPY --from=dockerize /usr/local/bin/dockerize /usr/local/bin/dockerize
+...
+ENTRYPOINT ["/usr/local/bin/dockerize"]
+```
+
+### FIPS 140-3 compliant builds
+
+Chainguard's FIPS-validated image variants (tagged `-fips`) are only offered for specific
+bundled applications with their own crypto stacks (e.g. `adminer-fips`, `adoptium-jdk-fips`) as
+part of Chainguard's paid Enterprise tier -- there's no generic FIPS-validated `static`/
+distroless base image to swap in for an arbitrary compiled binary like `dockerize`, so this
+project doesn't build or publish a `-chainguard-fips` variant.
+
+What actually determines FIPS 140-3 compliance for a Go binary is which cryptographic module it
+was *built* with, not which base image it runs in. Since Go 1.24, the toolchain has native
+support for this via the `GOFIPS140` build-time variable, which links in a validated Go
+Cryptographic Module instead of the default `crypto/*` implementations:
+
+```sh
+GOFIPS140=latest CGO_ENABLED=0 go build -ldflags "-s -w" -o dockerize .
+```
+
+Combine a `GOFIPS140`-built binary with the Chainguard `static` base above (or Alpine, if you
+need a shell) to get a FIPS 140-3 compliant `dockerize` build. See the
+[Go FIPS 140-3 documentation](https://go.dev/doc/security/fips140) for the full list of
+`GOFIPS140` values (`latest`, a pinned module version, `inprocess`, `certified`) and platform
+support caveats.
 
 ## Usage
 
